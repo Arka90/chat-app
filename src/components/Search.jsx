@@ -1,5 +1,15 @@
 import { useContext, useState } from "react";
-import { collection, query, where, getDocs, setDoc } from "firebase/firestore";
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  setDoc,
+  updateDoc,
+  serverTimestamp,
+  doc,
+  getDoc,
+} from "firebase/firestore";
 import { db } from "../firebase";
 import { AuthContext } from "../context/AuthContext";
 
@@ -9,9 +19,6 @@ function Search() {
   const [err, setErr] = useState(false);
   const { currentUser } = useContext(AuthContext);
   async function handelSearch() {
-    setUserName("");
-    setErr(false);
-
     const q = query(
       collection(db, "users"),
       where("displayName", "==", userName)
@@ -35,12 +42,32 @@ function Search() {
         : user.uid + currentUser.uid;
 
     try {
-      const res = await getDocs(db, "chats", combinedId);
+      const res = await getDoc(doc(db, "chats", combinedId));
       if (!res.exists()) {
         //Create user Chats
-        await setDoc(doc, (db, "chats", combinedId), { messages: [] });
+        await setDoc(doc(db, "chats", combinedId), { messages: [] });
+        await updateDoc(doc(db, "userChats", currentUser.uid), {
+          [combinedId + ".userInfo"]: {
+            uid: user.uid,
+            displayName: user.displayName,
+            photoURL: user.photoURL,
+          },
+          [combinedId + ".date"]: serverTimestamp(),
+        });
+
+        await updateDoc(doc(db, "userChats", user.uid), {
+          [combinedId + ".userInfo"]: {
+            uid: currentUser.uid,
+            displayName: currentUser.displayName,
+            photoURL: currentUser.photoURL,
+          },
+          [combinedId + ".date"]: serverTimestamp(),
+        });
       }
     } catch (err) {}
+
+    setUser(null);
+    setUserName("");
   }
 
   function handelKey(e) {
@@ -55,6 +82,7 @@ function Search() {
           placeholder="find a user"
           onKeyDown={handelKey}
           onChange={(e) => setUserName(e.target.value)}
+          value={userName}
         />
       </div>
       {err && <span>User Not Found</span>}
